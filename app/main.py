@@ -1,12 +1,67 @@
-"""StockLine mini — API d'inventaire simplifiée (version en mémoire)."""
+"""StockLine mini — API d'inventaire adossée à PostgreSQL."""
+import asyncio
 import os
+from contextlib import asynccontextmanager
 
+import psycopg
 from fastapi import FastAPI, HTTPException
+from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-ENVIRONNEMENT = os.environ.get("STOCKLINE_ENV", "dev")
+PRODUITS_INITIAUX = [
+    ("Clavier mécanique", 12, 5),
+    ("Écran 27 pouces", 3, 5),
+    ("Câble HDMI 2 m", 40, 10),
+]
 
-app = FastAPI(title="StockLine mini")
+
+def dsn():
+    """Construit la chaîne de connexion depuis les variables d'environnement."""
+    return (
+        f"host={os.environ.get('DB_HOTE', 'localhost')} "
+        f"port={os.environ.get('DB_PORT', '5432')} "
+        f"dbname={os.environ.get('DB_NOM', 'stockline')} "
+        f"user={os.environ.get('DB_UTILISATEUR', 'stockline')} "
+        f"password={os.environ['DB_MOT_DE_PASSE']}"
+    )
+
+
+def connexion():
+    return psycopg.connect(dsn(), row_factory=dict_row)
+
+
+@asynccontextmanager
+async def cycle_de_vie(app: FastAPI):
+    # La base peut mettre quelques secondes à démarrer : on réessaie.
+    for _ in range(10):
+        try:
+            with connexion() as conn:
+                conn.execute(
+                    """CREATE TABLE IF NOT EXISTS produits (
+                           id SERIAL PRIMARY KEY,
+                           nom TEXT NOT NULL,
+                           quantite INTEGER NOT NULL,
+                           seuil_alerte INTEGER NOT NULL DEFAULT 5
+                       )"""
+                )
+                nb = conn.execute(
+                    "SELECT COUNT(*) AS nb FROM produits"
+                ).fetchone()["nb"]
+                if nb == 0:
+                    conn.cursor().executemany(
+                        "INSERT INTO produits (nom, quantite, seuil_alerte) "
+                        "VALUES (%s, %s, %s)",
+                        PRODUITS_INITIAUX,
+                    )
+            break
+        except psycopg.OperationalError:
+            await asyncio.sleep(2)
+    else:
+        raise RuntimeError("base de données injoignable après 10 tentatives")
+    yield
+
+
+app = FastAPI(title="StockLine mini", lifespan=cycle_de_vie)
 
 
 class Produit(BaseModel):
@@ -15,39 +70,47 @@ class Produit(BaseModel):
     seuil_alerte: int = 5
 
 
-PRODUITS: dict[int, dict] = {
-    1: {"id": 1, "nom": "Clavier mécanique", "quantite": 12, "seuil_alerte": 5},
-    2: {"id": 2, "nom": "Écran 27 pouces", "quantite": 3, "seuil_alerte": 5},
-    3: {"id": 3, "nom": "Câble HDMI 2 m", "quantite": 40, "seuil_alerte": 10},
-}
-
-
 @app.get("/sante")
 def sante():
-    return {"statut": "ok", "environnement": ENVIRONNEMENT, "base_de_donnees": "ok"
-}
+    try:
+        with connexion() as conn:
+            conn.execute("SELECT 1")
+    except psycopg.OperationalError:
+        raise HTTPException(status_code=503, detail="base de données injoignable")
+    return {"statut": "ok", "base_de_donnees": "ok"}
 
 
 @app.get("/produits")
 def lister_produits():
-    return list(PRODUITS.values())
+    with connexion() as conn:
+        return conn.execute("SELECT * FROM produits ORDER BY id").fetchall()
 
 
 @app.get("/produits/{produit_id}")
 def lire_produit(produit_id: int):
-    if produit_id not in PRODUITS:
+    with connexion() as conn:
+        produit = conn.execute(
+            "SELECT * FROM produits WHERE id = %s", (produit_id,)
+        ).fetchone()
+    if produit is None:
         raise HTTPException(status_code=404, detail="produit inconnu")
-    return PRODUITS[produit_id]
+    return produit
 
 
 @app.post("/produits", status_code=201)
 def creer_produit(produit: Produit):
-    nouvel_id = max(PRODUITS, default=0) + 1
-    PRODUITS[nouvel_id] = {"id": nouvel_id, **produit.model_dump()}
-    return PRODUITS[nouvel_id]
+    with connexion() as conn:
+        return conn.execute(
+            "INSERT INTO produits (nom, quantite, seuil_alerte) "
+            "VALUES (%s, %s, %s) RETURNING *",
+            (produit.nom, produit.quantite, produit.seuil_alerte),
+        ).fetchone()
 
 
 @app.get("/alertes")
 def alertes():
     """Produits dont la quantité est passée sous le seuil d'alerte."""
-    return [p for p in PRODUITS.values() if p["quantite"] < p["seuil_alerte"]]
+    with connexion() as conn:
+        return conn.execute(
+            "SELECT * FROM produits WHERE quantite < seuil_alerte ORDER BY id"
+        ).fetchall()

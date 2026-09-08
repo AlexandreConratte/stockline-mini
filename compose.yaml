@@ -5,7 +5,11 @@ services:
       - "8000:8000"
     environment:
       DB_HOTE: db
+      DB_PORT: "5432"
+      DB_NOM: stockline
+      DB_UTILISATEUR: stockline
       DB_MOT_DE_PASSE: ${DB_MOT_DE_PASSE}
+
     depends_on:
       db:
         condition: service_healthy
