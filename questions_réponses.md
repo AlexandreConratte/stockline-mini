@@ -1,4 +1,4 @@
-Partie 2 : 
+**TP 1 , Partie 2 :** 
 
 *commande pour construire l'image :*
 
@@ -30,3 +30,25 @@ docker stop stockline-naif & docker rm stockline-naif
 *docker history stockline-mini:1.0  :* 
 
 La couche la plus lourde visible dans docker history stockline-mini:1.0 est la couche de base Debian, avec environ 87,5 MB
+
+
+**TP 2 , Brancher la vraie base :**
+
+**Partie 1 — L’API passe à PostgreSQL**  
+
+1. Pourquoi le mot de passe est-il le seul paramètre sans valeur par défaut (os.environ['DB_MOT_DE_PASSE'] et pas .get(...)) ?
+
+car un mdp est une données sensibles, qui ne doit pas apparaitre dans le code pur/sur github, à fournir soit via les variables d'environnement ou hachés/cryptés dans certaines bdd . Ici = via variables d'environnement
+
+2. À quoi sert la boucle de la fonction cycle_de_vie ? Que se passerait-il sans elle au démarrage d’une stack Docker Compose ?
+
+La boucle de la fonction sert à attendre la connexion via postgresql jusqu'à 10 fois. Si la connexion se fait : alors cela va créer la table de produit si elle n'existe pas, puis d'en indiquer le nombre, et si la table est vide (=0) , d'y insérer les tuples des PRODUITS_INITIAUX. Annuler toute l'opération si la bdd reste injoignable apràs 10 tentatives.     
+
+Sans elle, le docker compose pourrait ne pas réussir à se connecter à postegresql à son démarrage et donc l'app ne fonctionnerait pas
+
+3. Pourquoi écrit-on : WHERE id = %s
+
+Apparemment dans SQL on utilise des requêtes paramètrées (donc transmettre les données utilisateurs en paramètres) afin de prévenir les injections SQL, qui consistent à  tromper une base de données pour qu'elle révèle des choses qu'elle ne devrait pas révéler.
+
+**Partie 2 — Tester avec une base jetable**
+

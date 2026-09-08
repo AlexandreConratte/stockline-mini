@@ -24,7 +24,8 @@ PRODUITS: dict[int, dict] = {
 
 @app.get("/sante")
 def sante():
-    return {"statut": "ok", "environnement": ENVIRONNEMENT}
+    return {"statut": "ok", "environnement": ENVIRONNEMENT, "base_de_donnees": "ok"
+}
 
 
 @app.get("/produits")
