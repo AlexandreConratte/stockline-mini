@@ -74,3 +74,11 @@ D’où Docker Compose récupère-t-il cette valeur et pourquoi est-il préféra
 
 - Docker Compose récupère ${DB_MOT_DE_PASSE} par la valeur définie dans l’environnement du terminal (ex: tout à l'heure, la cmd DB_MOT_DE_PASSE=********** python3 -m pytest -v ) ou dans un fichier .env du projet
 
+
+
+Explication fin de TP 2 : 
+
+docker compose down stop+suppr les conteneurs et les réseaux, mais conserve le volume nommé PostgreSQL. Après docker compose up -d, la base retrouve ses données; le produit ajouté est encore là
+
+docker compose down -v supprime les volumes du projet en plus d'arrêter et suppr les conteneurs, dont le volume donnees-db,  donc efface les données PostgreSQL.
+Lorsqu'on relance l'api, la nouvelle base est recomposé des trois produits initiaux, mais pas des produits ajoutés
