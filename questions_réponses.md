@@ -25,3 +25,8 @@ Les deux principaux problèmes sont la taille de l'image, trop volumineuse pour 
 
 *cmd pour nettoyer le contenur* : 
 docker stop stockline-naif & docker rm stockline-naif
+
+
+*docker history stockline-mini:1.0  :* 
+
+La couche la plus lourde visible dans docker history stockline-mini:1.0 est la couche de base Debian, avec environ 87,5 MB
