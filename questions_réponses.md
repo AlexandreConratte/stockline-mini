@@ -50,5 +50,27 @@ Sans elle, le docker compose pourrait ne pas réussir à se connecter à postegr
 
 Apparemment dans SQL on utilise des requêtes paramètrées (donc transmettre les données utilisateurs en paramètres) afin de prévenir les injections SQL, qui consistent à  tromper une base de données pour qu'elle révèle des choses qu'elle ne devrait pas révéler.
 
-**Partie 2 — Tester avec une base jetable**
+**Partie 3 — La stack Docker Compose** 
+
+Questions de comprehension : 
+
+1. Dans la configuration du service api, pourquoi la variable : DB_HOTE: db
+utilise-t-elle le nom db au lieu d’une adresse IP ou de localhost ?
+
+- Cela indique au service api que la bdd est accessible à db, car dans docker compose les services se joignent via leurs noms
+
+2. À quoi sert la configuration suivante :
+depends_on:
+  db:
+    condition: service_healthy
+et quel est le rôle du healthcheck configuré sur PostgreSQL ? 
+
+- Même principe je suppose que la boucle de cycle-de-vie : attendre que postgresql réponde et accepte les connexions au démarrage du contenur, vu qu'il peut y avoir une latence entre les deux ?
+
+
+3. Dans les deux services, le mot de passe est récupéré de cette manière :
+${DB_MOT_DE_PASSE}
+D’où Docker Compose récupère-t-il cette valeur et pourquoi est-il préférable de procéder ainsi plutôt que d’écrire directement le mot de passe dans compose.yaml ?
+
+- Docker Compose récupère ${DB_MOT_DE_PASSE} par la valeur définie dans l’environnement du terminal (ex: tout à l'heure, la cmd DB_MOT_DE_PASSE=********** python3 -m pytest -v ) ou dans un fichier .env du projet
 
